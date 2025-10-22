@@ -1,0 +1,366 @@
+# GoReleaser configuration for MinIO with cpuv1 support
+# Documentation: https://goreleaser.com
+#
+# This configuration includes support for older x86-64 CPUs (cpuv1)
+# Use this if you need maximum compatibility with legacy hardware
+
+version: 2
+
+# Disable semver validation to support MinIO's timestamp-based tags
+# Format: RELEASE.2025-10-15T17-29-55Z
+git:
+  tag_sort: -version:refname
+
+# Project metadata
+project_name: minio
+
+# Build configuration
+builds:
+  # Default build (modern CPUs with AVX2, v3)
+  - id: minio
+    main: .
+    binary: minio
+    env:
+      - CGO_ENABLED=0
+      - GOAMD64=v3  # Target modern CPUs (2013+) with AVX2 support
+    flags:
+      - -tags=kqueue
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/minio/minio/cmd.Version={{ .Tag }}
+      - -X github.com/minio/minio/cmd.CopyrightYear={{ .Now.Year }}
+      - -X github.com/minio/minio/cmd.ReleaseTag={{ .Tag }}
+      - -X github.com/minio/minio/cmd.CommitID={{ .FullCommit }}
+      - -X github.com/minio/minio/cmd.ShortCommitID={{ .ShortCommit }}
+    goos:
+      - linux
+      - darwin
+      - windows
+      - freebsd
+      - netbsd
+      - openbsd
+    goarch:
+      - amd64
+      - arm64
+      - ppc64le
+      - s390x
+      - arm
+      - "386"
+      - mips
+      - mips64
+      - riscv64
+    goarm:
+      - "7"
+    ignore:
+      # Ignore unsupported platform combinations
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: ppc64le
+      - goos: darwin
+        goarch: s390x
+      - goos: darwin
+        goarch: arm
+      - goos: darwin
+        goarch: mips
+      - goos: darwin
+        goarch: mips64
+      - goos: darwin
+        goarch: riscv64
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: ppc64le
+      - goos: windows
+        goarch: s390x
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: "386"
+      - goos: windows
+        goarch: mips
+      - goos: windows
+        goarch: mips64
+      - goos: windows
+        goarch: riscv64
+      - goos: freebsd
+        goarch: arm64
+      - goos: freebsd
+        goarch: ppc64le
+      - goos: freebsd
+        goarch: s390x
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: "386"
+      - goos: freebsd
+        goarch: mips
+      - goos: freebsd
+        goarch: mips64
+      - goos: freebsd
+        goarch: riscv64
+      - goos: netbsd
+        goarch: arm64
+      - goos: netbsd
+        goarch: ppc64le
+      - goos: netbsd
+        goarch: s390x
+      - goos: netbsd
+        goarch: arm
+      - goos: netbsd
+        goarch: "386"
+      - goos: netbsd
+        goarch: mips
+      - goos: netbsd
+        goarch: mips64
+      - goos: netbsd
+        goarch: riscv64
+      - goos: openbsd
+        goarch: arm64
+      - goos: openbsd
+        goarch: ppc64le
+      - goos: openbsd
+        goarch: s390x
+      - goos: openbsd
+        goarch: arm
+      - goos: openbsd
+        goarch: "386"
+      - goos: openbsd
+        goarch: mips
+      - goos: openbsd
+        goarch: mips64
+      - goos: openbsd
+        goarch: riscv64
+
+  # cpuv1 build (legacy CPUs, only amd64)
+  - id: minio-cpuv1
+    main: .
+    binary: minio
+    env:
+      - CGO_ENABLED=0
+      - GOAMD64=v1  # Target all x86-64 CPUs (2003+) for maximum compatibility
+    flags:
+      - -tags=kqueue
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/minio/minio/cmd.Version={{ .Tag }}
+      - -X github.com/minio/minio/cmd.CopyrightYear={{ .Now.Year }}
+      - -X github.com/minio/minio/cmd.ReleaseTag={{ .Tag }}-cpuv1
+      - -X github.com/minio/minio/cmd.CommitID={{ .FullCommit }}
+      - -X github.com/minio/minio/cmd.ShortCommitID={{ .ShortCommit }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64  # Only amd64 needs cpuv1 (other architectures don't have micro-arch levels)
+
+# Archive configuration
+archives:
+  # Default archives
+  - id: default
+    builds:
+      - minio
+    name_template: "minio_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CREDITS
+
+  # cpuv1 archives
+  - id: cpuv1
+    builds:
+      - minio-cpuv1
+    name_template: "minio_{{ .Os }}_{{ .Arch }}_cpuv1"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CREDITS
+
+# Checksum configuration
+checksum:
+  name_template: "minio_checksums.txt"
+  algorithm: sha256
+
+# Snapshot configuration (for non-tag builds)
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+# Changelog configuration
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+# Docker image configuration
+dockers:
+  # Docker image for amd64 (v3 optimized)
+  - use: buildx
+    goos: linux
+    goarch: amd64
+    ids:
+      - minio
+    image_templates:
+      - "beck8/minio:latest-amd64"
+      - "beck8/minio:{{ .Tag }}-amd64"
+      - "ghcr.io/beck-8/minio:latest-amd64"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-amd64"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Tag }}"
+      - "--label=org.opencontainers.image.source=https://github.com/beck-8/minio"
+    extra_files:
+      - dockerscripts/docker-entrypoint.sh
+      - CREDITS
+      - LICENSE
+
+  # Docker image for amd64 cpuv1 (legacy CPU support)
+  - use: buildx
+    goos: linux
+    goarch: amd64
+    ids:
+      - minio-cpuv1
+    image_templates:
+      - "beck8/minio:{{ .Tag }}-cpuv1"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-cpuv1"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Tag }}-cpuv1"
+      - "--label=org.opencontainers.image.source=https://github.com/beck-8/minio"
+      - "--label=org.opencontainers.image.description=MinIO build for legacy CPUs (x86-64-v1)"
+    extra_files:
+      - dockerscripts/docker-entrypoint.sh
+      - CREDITS
+      - LICENSE
+
+  # Docker image for arm64
+  - use: buildx
+    goos: linux
+    goarch: arm64
+    ids:
+      - minio
+    image_templates:
+      - "beck8/minio:latest-arm64"
+      - "beck8/minio:{{ .Tag }}-arm64"
+      - "ghcr.io/beck-8/minio:latest-arm64"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-arm64"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Tag }}"
+      - "--label=org.opencontainers.image.source=https://github.com/beck-8/minio"
+    extra_files:
+      - dockerscripts/docker-entrypoint.sh
+      - CREDITS
+      - LICENSE
+
+  # Docker image for ppc64le
+  - use: buildx
+    goos: linux
+    goarch: ppc64le
+    ids:
+      - minio
+    image_templates:
+      - "beck8/minio:latest-ppc64le"
+      - "beck8/minio:{{ .Tag }}-ppc64le"
+      - "ghcr.io/beck-8/minio:latest-ppc64le"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-ppc64le"
+    dockerfile: Dockerfile.goreleaser
+    build_flag_templates:
+      - "--platform=linux/ppc64le"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.version={{ .Tag }}"
+      - "--label=org.opencontainers.image.source=https://github.com/beck-8/minio"
+    extra_files:
+      - dockerscripts/docker-entrypoint.sh
+      - CREDITS
+      - LICENSE
+
+# Docker manifest for multi-arch images
+docker_manifests:
+  # Docker Hub manifests
+  - name_template: "beck8/minio:latest"
+    image_templates:
+      - "beck8/minio:latest-amd64"
+      - "beck8/minio:latest-arm64"
+      - "beck8/minio:latest-ppc64le"
+
+  - name_template: "beck8/minio:{{ .Tag }}"
+    image_templates:
+      - "beck8/minio:{{ .Tag }}-amd64"
+      - "beck8/minio:{{ .Tag }}-arm64"
+      - "beck8/minio:{{ .Tag }}-ppc64le"
+
+  # GitHub Container Registry manifests
+  - name_template: "ghcr.io/beck-8/minio:latest"
+    image_templates:
+      - "ghcr.io/beck-8/minio:latest-amd64"
+      - "ghcr.io/beck-8/minio:latest-arm64"
+      - "ghcr.io/beck-8/minio:latest-ppc64le"
+
+  - name_template: "ghcr.io/beck-8/minio:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-amd64"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-arm64"
+      - "ghcr.io/beck-8/minio:{{ .Tag }}-ppc64le"
+
+# GitHub release configuration
+release:
+  github:
+    owner: beck-8
+    name: minio
+  draft: false
+  prerelease: auto
+  mode: replace
+  name_template: "{{ .Tag }}"
+  footer: |
+    ## Docker Images
+
+    **Docker Hub:** `docker pull beck8/minio:{{ .Tag }}`
+
+    **GitHub Container Registry:** `docker pull ghcr.io/beck-8/minio:{{ .Tag }}`
+
+    ### Supported Architectures
+    - linux/amd64 (modern CPUs with AVX2)
+    - linux/amd64-cpuv1 (legacy CPUs, all x86-64)
+    - linux/arm64
+    - linux/ppc64le
+
+    ### Legacy CPU Support
+
+    If you're running on older hardware (pre-2013) or certain virtualization platforms,
+    use the cpuv1 version:
+
+    ```bash
+    docker pull beck8/minio:{{ .Tag }}-cpuv1
+    docker pull ghcr.io/beck-8/minio:{{ .Tag }}-cpuv1
+    ```
+
+    For binaries, download the `*_cpuv1.tar.gz` or `*_cpuv1.zip` files.
