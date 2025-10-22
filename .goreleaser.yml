@@ -142,7 +142,7 @@ archives:
 
 # Checksum configuration
 checksum:
-  name_template: "minio_{{ .Tag }}_checksums.txt"
+  name_template: "minio_checksums.txt"
   algorithm: sha256
 
 # Snapshot configuration (for non-tag builds)
